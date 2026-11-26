@@ -1,0 +1,172 @@
+{
+  "environment": {
+    "os": "Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "arch": "x86_64",
+    "cpu_model": "Intel(R) Core(TM) i5-10210U CPU @ 1.60GHz",
+    "cpu_cores": 8,
+    "rustc": "rustc 1.100.0 (0ef1bc386 2026-11-09)",
+    "python": "Python 3.15.2 (/home/xagi/.local/bin/python3.15)"
+  },
+  "build_metrics": [
+    {
+      "step": "spy check (pure Rust)",
+      "wall_ms": 75.3,
+      "peak_rss_kib": 69792,
+      "binary_bytes": null
+    },
+    {
+      "step": "spy build debug (pure Rust)",
+      "wall_ms": 143.6,
+      "peak_rss_kib": 87264,
+      "binary_bytes": 4493232
+    },
+    {
+      "step": "spy build --release (pure Rust)",
+      "wall_ms": 144.6,
+      "peak_rss_kib": 89156,
+      "binary_bytes": 4492400
+    },
+    {
+      "step": "spy build --release (Python, cold cache)",
+      "wall_ms": 12394.8,
+      "peak_rss_kib": 415484,
+      "binary_bytes": 613672
+    },
+    {
+      "step": "spy check (Python, warm cache)",
+      "wall_ms": 3860.5,
+      "peak_rss_kib": 332528,
+      "binary_bytes": null
+    },
+    {
+      "step": "spy build debug (Python, warm cache)",
+      "wall_ms": 401.0,
+      "peak_rss_kib": 131668,
+      "binary_bytes": 9927832
+    },
+    {
+      "step": "spy build --release (Python, warm cache)",
+      "wall_ms": 394.6,
+      "peak_rss_kib": 122816,
+      "binary_bytes": 613672
+    }
+  ],
+  "startup": [
+    {
+      "label": "SPY (pure Rust)",
+      "runs": 15,
+      "min_ms": 1.977,
+      "median_ms": 2.193,
+      "mean_ms": 2.274,
+      "max_ms": 2.776,
+      "peak_rss_kib": 11684,
+      "median_rss_kib": 11684,
+      "stdout": "ok"
+    },
+    {
+      "label": "SPY (embedded CPython 3.15)",
+      "runs": 15,
+      "min_ms": 18.647,
+      "median_ms": 19.329,
+      "mean_ms": 19.45,
+      "max_ms": 20.968,
+      "peak_rss_kib": 16504,
+      "median_rss_kib": 16388,
+      "stdout": "1"
+    },
+    {
+      "label": "CPython 3.15",
+      "runs": 15,
+      "min_ms": 18.677,
+      "median_ms": 20.319,
+      "mean_ms": 20.479,
+      "max_ms": 22.773,
+      "peak_rss_kib": 12152,
+      "median_rss_kib": 12108,
+      "stdout": "1"
+    }
+  ],
+  "compute_primes_150k": [
+    {
+      "label": "SPY (native Rust loop)",
+      "runs": 7,
+      "min_ms": 24.961,
+      "median_ms": 25.472,
+      "mean_ms": 25.869,
+      "max_ms": 27.381,
+      "peak_rss_kib": 16404,
+      "median_rss_kib": 16384,
+      "stdout": "primes=13848"
+    },
+    {
+      "label": "CPython 3.15",
+      "runs": 5,
+      "min_ms": 146.299,
+      "median_ms": 150.588,
+      "mean_ms": 151.03,
+      "max_ms": 157.309,
+      "peak_rss_kib": 11948,
+      "median_rss_kib": 11932,
+      "stdout": "primes=13848"
+    }
+  ],
+  "python_calls_100k_sqrt": [
+    {
+      "label": "SPY (LazyPyModule per-call)",
+      "runs": 5,
+      "min_ms": 58.138,
+      "median_ms": 60.194,
+      "mean_ms": 60.446,
+      "max_ms": 62.846,
+      "peak_rss_kib": 16436,
+      "median_rss_kib": 16404,
+      "stdout": "sum=21082008.9739"
+    },
+    {
+      "label": "SPY (SpyRuntime::with_gil batched)",
+      "runs": 5,
+      "min_ms": 27.645,
+      "median_ms": 28.557,
+      "mean_ms": 28.805,
+      "max_ms": 30.634,
+      "peak_rss_kib": 16416,
+      "median_rss_kib": 16372,
+      "stdout": "sum=21082008.9739"
+    },
+    {
+      "label": "CPython 3.15 (local sqrt)",
+      "runs": 5,
+      "min_ms": 27.272,
+      "median_ms": 28.051,
+      "mean_ms": 28.746,
+      "max_ms": 31.45,
+      "peak_rss_kib": 12140,
+      "median_rss_kib": 12040,
+      "stdout": "sum=21082008.9739"
+    }
+  ],
+  "mixed_collatz_200k_json": [
+    {
+      "label": "SPY (Rust compute + Python json)",
+      "runs": 7,
+      "min_ms": 50.003,
+      "median_ms": 55.515,
+      "mean_ms": 55.465,
+      "max_ms": 62.209,
+      "peak_rss_kib": 17928,
+      "median_rss_kib": 17820,
+      "stdout": "{\"limit\": 200000, \"max_steps\": 382, \"total_steps\": 22938602}"
+    },
+    {
+      "label": "CPython 3.15",
+      "runs": 5,
+      "min_ms": 1554.935,
+      "median_ms": 1596.101,
+      "mean_ms": 1604.499,
+      "max_ms": 1670.334,
+      "peak_rss_kib": 13412,
+      "median_rss_kib": 13388,
+      "stdout": "{\"limit\": 200000, \"max_steps\": 382, \"total_steps\": 22938602}"
+    }
+  ]
+}

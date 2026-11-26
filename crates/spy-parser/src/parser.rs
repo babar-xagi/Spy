@@ -1,4 +1,4 @@
-use crate::ast::{ParsedProgram, PythonImport, Span};
+use crate::ast::{ParsedProgram, PythonImport, PythonImportStatement, Span};
 use crate::lexer::{tokenize, Token, TokenKind};
 use crate::ParseError;
 
@@ -6,8 +6,10 @@ use crate::ParseError;
 pub fn parse_source(source: &str) -> Result<ParsedProgram, ParseError> {
     let (tokens, line_index) = tokenize(source)?;
     let mut python_imports = Vec::new();
+    let mut python_import_statements = Vec::new();
     let mut rust_use_count = 0usize;
     let mut has_main_fn = false;
+    let mut main_body_open_brace = None;
 
     let mut i = 0usize;
     while i < tokens.len() {
@@ -17,19 +19,18 @@ pub fn parse_source(source: &str) -> Result<ParsedProgram, ParseError> {
             && name.lexeme == "main"
         {
             has_main_fn = true;
+            if main_body_open_brace.is_none() {
+                main_body_open_brace = find_fn_body_open_brace(&tokens, i + 2);
+            }
         }
 
-        // Only inspect top-level / statement-level `use` declarations.
         if tokens[i].kind == TokenKind::KwUse {
-            let start_span = tokens[i].span;
-            if let Some((parsed_imports, next_idx)) =
-                try_parse_python_use(&tokens, i, &line_index)?
-            {
-                python_imports.extend(parsed_imports);
+            if let Some((stmt, next_idx)) = try_parse_python_use(&tokens, i, &line_index)? {
+                python_imports.extend(stmt.imports.clone());
+                python_import_statements.push(stmt);
                 i = next_idx;
                 continue;
             } else {
-                let _ = start_span;
                 rust_use_count += 1;
             }
         }
@@ -42,16 +43,44 @@ pub fn parse_source(source: &str) -> Result<ParsedProgram, ParseError> {
         line_index,
         tokens,
         python_imports,
+        python_import_statements,
         rust_use_count,
         has_main_fn,
+        main_body_open_brace,
     })
+}
+
+fn find_fn_body_open_brace(tokens: &[Token], mut idx: usize) -> Option<usize> {
+    let mut paren_depth = 0usize;
+    let mut seen_params = false;
+
+    while let Some(tok) = tokens.get(idx) {
+        match tok.kind {
+            TokenKind::LParen => {
+                seen_params = true;
+                paren_depth += 1;
+            }
+            TokenKind::RParen => {
+                paren_depth = paren_depth.saturating_sub(1);
+            }
+            TokenKind::LBrace if seen_params && paren_depth == 0 => {
+                return Some(tok.span.end);
+            }
+            TokenKind::Semi if !seen_params || paren_depth == 0 => {
+                return None;
+            }
+            _ => {}
+        }
+        idx += 1;
+    }
+    None
 }
 
 fn try_parse_python_use(
     tokens: &[Token],
     use_idx: usize,
     line_index: &crate::ast::LineIndex,
-) -> Result<Option<(Vec<PythonImport>, usize)>, ParseError> {
+) -> Result<Option<(PythonImportStatement, usize)>, ParseError> {
     let Some(first) = tokens.get(use_idx + 1) else {
         return Ok(None);
     };
@@ -91,46 +120,46 @@ fn try_parse_python_use(
                     idx += 1;
                     break;
                 }
-                if item.kind != TokenKind::Ident {
-                    return Err(ParseError::SyntaxError {
-                        location: line_index.location(item.span.start),
-                        message: format!(
-                            "expected Python module identifier inside `{{...}}`, found `{}`",
-                            item.lexeme
-                        ),
-                    });
-                }
                 let mut module_path = prefix.clone();
-                module_path.push(item.lexeme.clone());
-                let mut alias = item.lexeme.clone();
-                let mut end = item.span.end;
-                idx += 1;
-
-                if tokens.get(idx).map(|t| t.kind) == Some(TokenKind::KwAs) {
-                    let Some(alias_tok) = tokens.get(idx + 1) else {
+                let mut item_end;
+                loop {
+                    let Some(seg) = tokens.get(idx) else {
                         return Err(ParseError::SyntaxError {
-                            location: line_index.location(tokens[idx].span.end),
-                            message: "expected alias identifier after `as`".to_owned(),
+                            location: line_index.location(tokens[use_idx].span.start),
+                            message: "unterminated `use python::{...}` import".to_owned(),
                         });
                     };
-                    if alias_tok.kind != TokenKind::Ident {
+                    if seg.kind != TokenKind::Ident {
                         return Err(ParseError::SyntaxError {
-                            location: line_index.location(alias_tok.span.start),
+                            location: line_index.location(seg.span.start),
                             message: format!(
-                                "expected alias identifier after `as`, found `{}`",
-                                alias_tok.lexeme
+                                "expected Python module identifier inside `{{...}}`, found `{}`",
+                                seg.lexeme
                             ),
                         });
                     }
-                    alias = alias_tok.lexeme.clone();
-                    end = alias_tok.span.end;
-                    idx += 2;
+                    module_path.push(seg.lexeme.clone());
+                    item_end = seg.span.end;
+                    idx += 1;
+                    if tokens.get(idx).map(|t| t.kind) == Some(TokenKind::ColonColon) {
+                        idx += 1;
+                    } else {
+                        break;
+                    }
+                }
+
+                let mut alias = module_path.last().cloned().unwrap_or_default();
+                if tokens.get(idx).map(|t| t.kind) == Some(TokenKind::KwAs) {
+                    let (alias_name, alias_end, next) = parse_alias(tokens, idx, line_index)?;
+                    alias = alias_name;
+                    item_end = alias_end;
+                    idx = next;
                 }
 
                 imports.push(PythonImport {
                     module_path,
                     alias,
-                    span: Span::new(tokens[use_idx].span.start, end),
+                    span: Span::new(tokens[use_idx].span.start, item_end),
                 });
 
                 if tokens.get(idx).map(|t| t.kind) == Some(TokenKind::Comma) {
@@ -138,7 +167,7 @@ fn try_parse_python_use(
                 }
             }
 
-            if tokens.get(idx).map(|t| t.kind) != Some(TokenKind::Semi) {
+            let Some(semi) = tokens.get(idx).filter(|t| t.kind == TokenKind::Semi) else {
                 let loc = tokens
                     .get(idx)
                     .map(|t| line_index.location(t.span.start))
@@ -147,8 +176,18 @@ fn try_parse_python_use(
                     location: loc,
                     message: "expected `;` after `use python::{...}` import".to_owned(),
                 });
+            };
+            if imports.is_empty() {
+                return Err(ParseError::SyntaxError {
+                    location: line_index.location(tokens[use_idx].span.start),
+                    message: "empty `use python::{}` import list".to_owned(),
+                });
             }
-            return Ok(Some((imports, idx + 1)));
+            let stmt = PythonImportStatement {
+                span: Span::new(tokens[use_idx].span.start, semi.span.end),
+                imports,
+            };
+            return Ok(Some((stmt, idx + 1)));
         }
 
         if tok.kind != TokenKind::Ident {
@@ -161,7 +200,7 @@ fn try_parse_python_use(
             });
         }
         prefix.push(tok.lexeme.clone());
-        let mut end = tok.span.end;
+        let end = tok.span.end;
         idx += 1;
 
         match tokens.get(idx).map(|t| t.kind) {
@@ -169,50 +208,37 @@ fn try_parse_python_use(
                 idx += 1;
             }
             Some(TokenKind::KwAs) => {
-                let Some(alias_tok) = tokens.get(idx + 1) else {
-                    return Err(ParseError::SyntaxError {
-                        location: line_index.location(tokens[idx].span.end),
-                        message: "expected alias identifier after `as`".to_owned(),
-                    });
-                };
-                if alias_tok.kind != TokenKind::Ident {
-                    return Err(ParseError::SyntaxError {
-                        location: line_index.location(alias_tok.span.start),
-                        message: format!(
-                            "expected alias identifier after `as`, found `{}`",
-                            alias_tok.lexeme
-                        ),
-                    });
-                }
-                end = alias_tok.span.end;
-                idx += 2;
+                let (alias, alias_end, next) = parse_alias(tokens, idx, line_index)?;
+                idx = next;
 
-                if tokens.get(idx).map(|t| t.kind) != Some(TokenKind::Semi) {
+                let Some(semi) = tokens.get(idx).filter(|t| t.kind == TokenKind::Semi) else {
                     let loc = tokens
                         .get(idx)
                         .map(|t| line_index.location(t.span.start))
-                        .unwrap_or_else(|| line_index.location(end));
+                        .unwrap_or_else(|| line_index.location(alias_end));
                     return Err(ParseError::SyntaxError {
                         location: loc,
                         message: "expected `;` at end of Python import".to_owned(),
                     });
-                }
+                };
 
-                imports.push(PythonImport {
-                    module_path: prefix,
-                    alias: alias_tok.lexeme.clone(),
-                    span: Span::new(tokens[use_idx].span.start, tokens[idx].span.end),
-                });
-                return Ok(Some((imports, idx + 1)));
-            }
-            Some(TokenKind::Semi) => {
-                let alias = prefix.last().cloned().unwrap_or_default();
+                let span = Span::new(tokens[use_idx].span.start, semi.span.end);
                 imports.push(PythonImport {
                     module_path: prefix,
                     alias,
-                    span: Span::new(tokens[use_idx].span.start, tokens[idx].span.end),
+                    span,
                 });
-                return Ok(Some((imports, idx + 1)));
+                return Ok(Some((PythonImportStatement { span, imports }, idx + 1)));
+            }
+            Some(TokenKind::Semi) => {
+                let alias = prefix.last().cloned().unwrap_or_default();
+                let span = Span::new(tokens[use_idx].span.start, tokens[idx].span.end);
+                imports.push(PythonImport {
+                    module_path: prefix,
+                    alias,
+                    span,
+                });
+                return Ok(Some((PythonImportStatement { span, imports }, idx + 1)));
             }
             _ => {
                 let loc = tokens
@@ -226,4 +252,27 @@ fn try_parse_python_use(
             }
         }
     }
+}
+
+fn parse_alias(
+    tokens: &[Token],
+    as_idx: usize,
+    line_index: &crate::ast::LineIndex,
+) -> Result<(String, usize, usize), ParseError> {
+    let Some(alias_tok) = tokens.get(as_idx + 1) else {
+        return Err(ParseError::SyntaxError {
+            location: line_index.location(tokens[as_idx].span.end),
+            message: "expected alias identifier after `as`".to_owned(),
+        });
+    };
+    if alias_tok.kind != TokenKind::Ident {
+        return Err(ParseError::SyntaxError {
+            location: line_index.location(alias_tok.span.start),
+            message: format!(
+                "expected alias identifier after `as`, found `{}`",
+                alias_tok.lexeme
+            ),
+        });
+    }
+    Ok((alias_tok.lexeme.clone(), alias_tok.span.end, as_idx + 2))
 }

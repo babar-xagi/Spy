@@ -2,7 +2,7 @@ pub mod ast;
 pub mod lexer;
 pub mod parser;
 
-pub use ast::{LineIndex, Location, ParsedProgram, PythonImport, Span};
+pub use ast::{LineIndex, Location, ParsedProgram, PythonImport, PythonImportStatement, Span};
 pub use lexer::{tokenize, SingleQuoteKind, Token, TokenKind};
 pub use parser::parse_source;
 
@@ -70,13 +70,15 @@ mod tests {
             use python::pandas as pd;
             use python::os::path as ospath;
             use python::math;
-            use python::{json, sys as pysys};
+            use python::{json, sys as pysys, urllib::parse as urlparse};
 
-            fn main() {}
+            fn main() -> Result<(), Box<dyn std::error::Error>> {
+                Ok(())
+            }
         "#;
         let program = parse_source(src).expect("should parse python imports");
         assert_eq!(program.rust_use_count, 1);
-        assert_eq!(program.python_imports.len(), 5);
+        assert_eq!(program.python_imports.len(), 6);
         assert_eq!(program.python_imports[0].module_path, vec!["pandas"]);
         assert_eq!(program.python_imports[0].alias, "pd");
         assert_eq!(program.python_imports[1].module_path, vec!["os", "path"]);
@@ -85,5 +87,8 @@ mod tests {
         assert_eq!(program.python_imports[2].alias, "math");
         assert_eq!(program.python_imports[3].alias, "json");
         assert_eq!(program.python_imports[4].alias, "pysys");
+        assert_eq!(program.python_imports[5].module_path, vec!["urllib", "parse"]);
+        assert_eq!(program.python_imports[5].alias, "urlparse");
+        assert!(program.main_body_open_brace.is_some());
     }
 }

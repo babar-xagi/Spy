@@ -27,6 +27,15 @@ pub enum CompilerError {
     #[error("could not find a working `rustc` executable in PATH or ~/.cargo/bin")]
     MissingRustc,
 
+    #[error("could not find a working `cargo` executable in PATH or ~/.cargo/bin")]
+    MissingCargo,
+
+    #[error("could not locate `spy-runtime` crate; set `SPY_RUNTIME_PATH`")]
+    MissingSpyRuntimeCrate,
+
+    #[error("no PyO3-compatible Python environment available: {detail}")]
+    NoCompatiblePython { detail: String },
+
     #[error("{0}")]
     Parse(#[from] spy_parser::ParseError),
 
@@ -35,6 +44,9 @@ pub enum CompilerError {
 
     #[error("rustc compilation failed:\n{stderr}")]
     RustcFailed { stderr: String },
+
+    #[error("cargo compilation failed:\n{stderr}")]
+    CargoFailed { stderr: String },
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

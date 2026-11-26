@@ -17,8 +17,9 @@ rust-version = "1.85"
 [workspace.dependencies]
 clap = { version = "4.6.8", features = ["derive"] }
 logos = "0.14.4"
+pyo3 = { version = "0.30.1", features = ["auto-initialize"] }
 thiserror = "2.0.21"
 spy-codegen = { path = "crates/spy-codegen" }
 spy-compiler = { path = "crates/spy-compiler" }
 spy-parser = { path = "crates/spy-parser" }
-spy-runtime = { path = "crates/spy-runtime" }
+spy-runtime = { path = "crates/spy-runtime", default-features = false }

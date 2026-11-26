@@ -254,12 +254,20 @@ fn locate_libpython(
     lib_pl: Option<&Path>,
     ld_library: Option<&str>,
 ) -> (Option<PathBuf>, Option<PathBuf>) {
-    let mut search_dirs = Vec::new();
+    // PyO3's build script searches `LIBDIR` (`-L <lib_dir>`); libraries located solely
+    // inside `LIBPL` without a `LIBDIR` symlink (e.g. Debian/Ubuntu without python3-dev)
+    // fail `-lpython3.x` linking unless `python3-dev` is installed.
+    let mut link_dirs = Vec::new();
     if let Some(dir) = lib_dir {
-        search_dirs.push(dir);
+        link_dirs.push(dir);
+    }
+
+    let mut runtime_dirs = Vec::new();
+    if let Some(dir) = lib_dir {
+        runtime_dirs.push(dir);
     }
     if let Some(dir) = lib_pl {
-        search_dirs.push(dir);
+        runtime_dirs.push(dir);
     }
 
     let linkable_names = [
@@ -273,8 +281,8 @@ fn locate_libpython(
         format!("libpython{major}.{minor}.so"),
     ];
 
-    let linkable = find_first_file(&search_dirs, &linkable_names);
-    let runtime = find_first_file(&search_dirs, &runtime_names);
+    let linkable = find_first_file(&link_dirs, &linkable_names);
+    let runtime = find_first_file(&runtime_dirs, &runtime_names);
     (linkable, runtime)
 }
 

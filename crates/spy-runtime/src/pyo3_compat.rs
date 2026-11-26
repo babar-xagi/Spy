@@ -53,9 +53,9 @@ pub fn verify_pyo3_compatibility(
     let mut recommended_env = Vec::new();
     let mut blocked = false;
 
-    if python.major < 3 || (python.major == 3 && python.minor < 8) {
+    if python.major < 3 || (python.major == 3 && python.minor < 9) {
         notes.push(format!(
-            "CPython {} is older than PyO3's supported baseline (>= 3.8)",
+            "CPython {} is older than PyO3 0.30's supported baseline (>= 3.9)",
             python.short_version()
         ));
         return Pyo3CompatibilityReport {
@@ -67,13 +67,14 @@ pub fn verify_pyo3_compatibility(
     }
 
     if !python.has_python_h {
-        blocked = true;
         let inc_hint = python
             .include_dir
             .as_ref()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "<unknown>".to_owned());
-        notes.push(format!("missing Python.h in `{inc_hint}` (install python3-dev or use a Python toolchain with headers)"));
+        notes.push(format!(
+            "Python.h missing in `{inc_hint}` (pure PyO3 works via linkable libpython; C probes/extensions require dev headers)"
+        ));
     }
 
     if python.linkable_libpython.is_none() {
@@ -115,13 +116,14 @@ pub fn verify_pyo3_compatibility(
         python.executable.display().to_string(),
     ));
 
-    // PyO3 natively targets released CPython series (currently up to 3.14);
-    // newer CPython releases (3.15+) work via ABI3 forward compatibility or newer PyO3.
-    let status = if python.major == 3 && python.minor <= 14 {
-        notes.push(format!(
-            "CPython {} has Python.h, linkable libpython, and C toolchain support",
-            python.short_version()
-        ));
+    // PyO3 0.30 supports CPython 3.9..=3.15 natively (and experimental 3.16+ via ABI3 forward-compat).
+    let status = if python.major == 3 && python.minor <= 15 {
+        if python.has_python_h {
+            notes.push(format!(
+                "CPython {} has Python.h, linkable libpython, and C toolchain support",
+                python.short_version()
+            ));
+        }
         CompatibilityStatus::Ready
     } else {
         recommended_env.push((
@@ -129,9 +131,8 @@ pub fn verify_pyo3_compatibility(
             "1".to_owned(),
         ));
         notes.push(format!(
-            "CPython {} has Python.h and linkable libpython; set `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` if using PyO3 releases predating Python {}",
+            "CPython {} is newer than PyO3 0.30's baseline (<= 3.15); set `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` when building ABI3 crates",
             python.short_version(),
-            python.minor_tag()
         ));
         CompatibilityStatus::ReadyWithForwardCompat
     };
@@ -153,7 +154,12 @@ pub fn select_best_report(reports: &[Pyo3CompatibilityReport]) -> Option<&Pyo3Co
             crate::PythonSource::VirtualEnv | crate::PythonSource::CondaEnv => 1,
             _ => 2,
         };
-        (r.status, explicit_env, r.python.is_prerelease)
+        (
+            r.status,
+            explicit_env,
+            r.python.is_prerelease,
+            !r.python.has_python_h,
+        )
     })
 }
 

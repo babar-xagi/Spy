@@ -5,5 +5,10 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[features]
+default = ["embedded"]
+embedded = ["dep:pyo3"]
+
 [dependencies]
+pyo3 = { workspace = true, optional = true }
 thiserror.workspace = true

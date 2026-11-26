@@ -58,12 +58,26 @@ impl LineIndex {
     }
 }
 
-/// A parsed `use python::...` import declaration.
+/// A parsed `use python::...` import binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PythonImport {
     pub module_path: Vec<String>,
     pub alias: String,
     pub span: Span,
+}
+
+impl PythonImport {
+    /// Returns the Python dotted module path (e.g. `"os.path"`).
+    pub fn dotted_name(&self) -> String {
+        self.module_path.join(".")
+    }
+}
+
+/// A complete `use python::...;` statement spanning from `use` through `;`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PythonImportStatement {
+    pub span: Span,
+    pub imports: Vec<PythonImport>,
 }
 
 /// Summary of a parsed `.rs` SPY source unit.
@@ -73,8 +87,10 @@ pub struct ParsedProgram {
     pub line_index: LineIndex,
     pub tokens: Vec<crate::Token>,
     pub python_imports: Vec<PythonImport>,
+    pub python_import_statements: Vec<PythonImportStatement>,
     pub rust_use_count: usize,
     pub has_main_fn: bool,
+    pub main_body_open_brace: Option<usize>,
 }
 
 impl ParsedProgram {

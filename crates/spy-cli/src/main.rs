@@ -3,7 +3,8 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use spy_compiler::{
-    build_file, check_file, inspect_environment, run_file, BuildOptions, EnvironmentReport,
+    build_file, check_file, inspect_environment, parse_and_translate, run_file, BuildOptions,
+    EnvironmentReport,
 };
 use spy_runtime::{probe_cpython_c_embedding, CompatibilityStatus};
 
@@ -70,6 +71,11 @@ enum Commands {
         /// Path to the .rs source file
         file: PathBuf,
     },
+    /// Emit generated Rust source for a .rs SPY file without compiling
+    Emit {
+        /// Path to the .rs source file
+        file: PathBuf,
+    },
 }
 
 fn main() -> ExitCode {
@@ -123,8 +129,16 @@ fn execute(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
             Ok(ExitCode::SUCCESS)
         }
         Commands::Check { file, edition } => {
-            check_file(&file, edition.as_deref())?;
-            println!("ok: `{}` passed SPY check", file.display());
+            let artifact = check_file(&file, edition.as_deref())?;
+            if artifact.requires_python_runtime {
+                println!(
+                    "ok: `{}` passed SPY check ({} Python import(s))",
+                    file.display(),
+                    artifact.python_imports.len()
+                );
+            } else {
+                println!("ok: `{}` passed SPY check", file.display());
+            }
             Ok(ExitCode::SUCCESS)
         }
         Commands::Doctor { probe } => {
@@ -151,6 +165,11 @@ fn execute(cli: Cli) -> Result<ExitCode, Box<dyn std::error::Error>> {
                 let loc = parsed.location_of(tok.span);
                 println!("  {loc:<8} {:?} `{}`", tok.kind, tok.lexeme);
             }
+            Ok(ExitCode::SUCCESS)
+        }
+        Commands::Emit { file } => {
+            let (_, generated) = parse_and_translate(&file)?;
+            print!("{}", generated.rust_source);
             Ok(ExitCode::SUCCESS)
         }
     }
