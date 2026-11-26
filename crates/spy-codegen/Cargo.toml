@@ -1,0 +1,10 @@
+[package]
+name = "spy-codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+spy-parser.workspace = true
+thiserror.workspace = true

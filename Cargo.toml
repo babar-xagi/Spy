@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/spy-cli",
+    "crates/spy-compiler",
+    "crates/spy-parser",
+    "crates/spy-runtime",
+    "crates/spy-codegen",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+clap = { version = "4.6.8", features = ["derive"] }
+logos = "0.14.4"
+thiserror = "2.0.21"
+spy-codegen = { path = "crates/spy-codegen" }
+spy-compiler = { path = "crates/spy-compiler" }
+spy-parser = { path = "crates/spy-parser" }
+spy-runtime = { path = "crates/spy-runtime" }

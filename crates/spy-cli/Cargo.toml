@@ -1,0 +1,17 @@
+[package]
+name = "spy-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "spy"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+spy-compiler.workspace = true
+spy-parser.workspace = true
+spy-runtime.workspace = true
+thiserror.workspace = true

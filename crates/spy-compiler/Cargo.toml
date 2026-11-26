@@ -1,0 +1,12 @@
+[package]
+name = "spy-compiler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+spy-codegen.workspace = true
+spy-parser.workspace = true
+spy-runtime.workspace = true
+thiserror.workspace = true
